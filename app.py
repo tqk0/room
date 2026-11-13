@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="4mini キャブセッティング診断", page_icon="🏍️", layout="centered")
+st.set_page_config(page_title="キャブセッティング診断", page_icon="🏍️", layout="centered")
 
 # ==========================================
 # 【Part 1】マスタデータ定義（ここをコピペして増やせます！）
@@ -56,6 +56,11 @@ BIKE_DATA = {
         "engine_type": "縦型",
         "default_cc_index": 0,
         "note": "高回転型の縦型エンジン（ドリーム50はDOHC）。薄め焼き付きに注意し、高回転のMJを丁寧に合わせます。"
+    },
+    "ボルティー250 (NJ47A)": {
+        "engine_type": "250cc単気筒",
+        "default_cc_index": 4,
+        "note": "スズキの空冷250cc単気筒（グラストラッカー/ST250系）。社外キャブ化ではスロットルワイヤー変更やパワフィル化・2次エアキャンセルの確認が定番です。"
     },
 }
 
@@ -133,6 +138,17 @@ CARB_DATA = {
         "screw_type": "AS",
         "note": "フラットバルブでレスポンス抜群。低開度（SJ〜ニードル）の合わせ込みがシビアになりやすいです。"
     },
+    "PWK34 (KOSO / DIPPER / 汎用)": {
+        "maker": "ケイヒンタイプ",
+        "base_mj": 120.0,
+        "base_sj": 40.0,
+        "mj_step": 5.0,
+        "sj_step": 2.0,
+        "base_screw": 1.5,
+        "screw_type": "AS",
+        "base_for_250": True,
+        "note": "250cc単気筒等に人気のφ34ビッグキャブ（ケイヒン用MJ/SJ互換）。パワージェット付きモデルは高回転で濃くなりやすいためMJを少し抑えめにするか調整が必要です。"
+    },
     "KEIHIN CR-mini22": {
         "maker": "ケイヒン",
         "base_mj": 95.0,
@@ -151,7 +167,7 @@ CARB_DATA = {
         "sj_step": 3.0,
         "base_screw": 1.5,
         "screw_type": "PS",
-        "note": "4mini最高峰レーシングキャブ（加速ポンプ付）。基本は下側のPS（緩めると濃く）でアイドリング〜極低開度を合わせます。"
+        "note": "4mini〜250単気筒にも人気のレーシングキャブ（加速ポンプ付）。基本は下側のPS（緩めると濃く）でアイドリング〜極低開度を合わせます。"
     },
     "MIKUNI VM22 (汎用/中華キット等)": {
         "maker": "ミクニ",
@@ -229,19 +245,40 @@ def calc_base_setting(carb_name, cc_class, head_spec, air_filter, exhaust, seaso
     sj = carb["base_sj"]
     clip = 3
     screw_turn = carb["base_screw"]
+    is_250_carb = carb.get("base_for_250", False)
 
     # 排気量補正
-    if cc_class == "50cc (ノーマル)":
-        mj -= carb["mj_step"] * 2
-        sj -= carb["sj_step"]
-    elif cc_class == "75〜88cc (定番ボアアップ)":
-        pass
-    elif cc_class == "100〜110cc (ミドルチューン)":
-        mj += carb["mj_step"]
-        sj += carb["sj_step"] * 0.5
-    elif cc_class == "115〜124cc+ (ハイチューン/中華125等)":
-        mj += carb["mj_step"] * 2
-        sj += carb["sj_step"]
+    if is_250_carb:
+        # PWK34など最初から250cc基準のキャブの場合
+        if cc_class == "50cc (ノーマル)":
+            mj -= carb["mj_step"] * 4
+            sj -= carb["sj_step"] * 2
+        elif cc_class == "75〜88cc (定番ボアアップ)":
+            mj -= carb["mj_step"] * 3
+            sj -= carb["sj_step"]
+        elif cc_class == "100〜110cc (ミドルチューン)":
+            mj -= carb["mj_step"] * 2
+            sj -= carb["sj_step"] * 0.5
+        elif cc_class == "115〜124cc+ (ハイチューン/中華125等)":
+            mj -= carb["mj_step"]
+        elif cc_class == "200〜250cc (単気筒・ボルティー等)":
+            pass  # 基準値そのまま
+    else:
+        # 4mini（75〜88cc）基準のキャブの場合
+        if cc_class == "50cc (ノーマル)":
+            mj -= carb["mj_step"] * 2
+            sj -= carb["sj_step"]
+        elif cc_class == "75〜88cc (定番ボアアップ)":
+            pass
+        elif cc_class == "100〜110cc (ミドルチューン)":
+            mj += carb["mj_step"]
+            sj += carb["sj_step"] * 0.5
+        elif cc_class == "115〜124cc+ (ハイチューン/中華125等)":
+            mj += carb["mj_step"] * 2
+            sj += carb["sj_step"]
+        elif cc_class == "200〜250cc (単気筒・ボルティー等)":
+            mj += carb["mj_step"] * 3
+            sj += carb["sj_step"] * 1.5
 
     # ヘッド・カム補正
     if head_spec == "社外スポーツカムのみ":
@@ -376,8 +413,8 @@ def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, s
 # 【Part 3】画面UI
 # ==========================================
 
-st.title("🏍️ 4mini キャブセッティング診断")
-st.caption("個人制作の非公式ツール｜横型・縦型4mini 全10車種 × 人気15キャブ対応")
+st.title("🏍️ キャブセッティング診断")
+st.caption("個人制作の非公式ツール｜4mini & 250cc単気筒（全11車種 × 人気16キャブ対応）")
 
 # --- 1. マシン仕様入力 ---
 st.header("1. 車体・エンジン・吸排気の仕様")
@@ -387,8 +424,15 @@ with col1:
     bike_info = BIKE_DATA[bike_model]
     cc_class = st.selectbox(
         "排気量",
-        ["50cc (ノーマル)", "75〜88cc (定番ボアアップ)", "100〜110cc (ミドルチューン)", "115〜124cc+ (ハイチューン/中華125等)"],
-        index=bike_info["default_cc_index"]
+        [
+            "50cc (ノーマル)",
+            "75〜88cc (定番ボアアップ)",
+            "100〜110cc (ミドルチューン)",
+            "115〜124cc+ (ハイチューン/中華125等)",
+            "200〜250cc (単気筒・ボルティー等)"
+        ],
+        index=bike_info["default_cc_index"],
+        key=f"cc_{bike_model}"
     )
     head_spec = st.selectbox("ヘッド・カム詳細", [
         "純正ヘッド・純正カム",
@@ -493,7 +537,7 @@ if st.button("🔍 次の推奨セッティングを診断する", type="primary
 st.divider()
 st.caption("""
 **【免責事項・ご利用にあたって】**
-- 本アプリは4mini好きの個人が制作した非公式の参考ツールです。各メーカー様とは一切関係ありません。
+- 本アプリはバイク好きの個人が制作した非公式の参考ツールです。各メーカー様とは一切関係ありません。
 - 提示される番手や調整値は一般的な目安です。車両の個体差、気候、経年劣化等により最適値は異なります。
 - 本アプリを参考にした作業・走行によるエンジンの焼き付きや故障等のトラブルについて、制作者は一切の責任を負いかねます。必ず自己責任のもと、安全に配慮してセッティングを行ってください。
 """)
