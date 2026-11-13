@@ -457,7 +457,7 @@ with st.expander("📊 この仕様の「基準（初期）セッティング」
     b1, b2, b3, b4 = st.columns(4)
     b1.metric("基準 MJ", f"#{fmt(base_mj)}")
     b2.metric("基準 SJ", f"#{fmt(base_sj)}")
-    b3.metric("ニードルクリップ", f"上から {base_clip}段目")
+    b3.metric("クリップ(上から)", f"{base_clip}段目")
     b4.metric(f"{screw_label} 戻し", f"{base_screw} 回転")
     st.caption("※あくまでスタート地点の目安です。迷ったら基準より少し濃いめ（MJ+5〜10）から始めると安全です。")
 
@@ -520,7 +520,7 @@ if st.button("🔍 次の推奨セッティングを診断する", type="primary
     r1, r2, r3, r4 = st.columns(4)
     r1.metric("推奨 MJ", f"#{fmt(new_mj)}", delta=fmt(new_mj - cur_mj) if new_mj != cur_mj else None)
     r2.metric("推奨 SJ", f"#{fmt(new_sj)}", delta=fmt(new_sj - cur_sj) if new_sj != cur_sj else None)
-    r3.metric("クリップ位置", f"{new_clip}段目", delta=f"{new_clip - cur_clip}段" if new_clip != cur_clip else None)
+    r3.metric("クリップ(上から)", f"{new_clip}段目", delta=f"{new_clip - cur_clip}段" if new_clip != cur_clip else None)
     r4.metric(f"{screw_label} 戻し", f"{new_screw} 回転", delta=f"{round(new_screw - cur_screw, 2)}" if new_screw != cur_screw else None)
 
     st.subheader("📝 調整のポイント")
