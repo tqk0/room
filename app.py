@@ -140,7 +140,7 @@ CARB_DATA = {
     },
     "PWK34 (KOSO / DIPPER / 汎用)": {
         "maker": "ケイヒンタイプ",
-        "base_mj": 120.0,
+        "base_mj": 115.0,
         "base_sj": 40.0,
         "mj_step": 5.0,
         "sj_step": 2.0,
