@@ -82,23 +82,23 @@ BIKE_DATA = {
 CARB_DATA = {
     "KEIHIN 純正 PB14 (エイプ50等)": {
         "maker": "ケイヒン",
-        "base_mj": 72.0,
+        "base_mj": 78.0,
         "base_sj": 38.0,
-        "mj_step": 3.0,
+        "mj_step": 4.0,
         "sj_step": 3.0,
         "base_screw": 1.5,
         "screw_type": "AS",
-        "note": "エイプ50(AC16)純正キャブ。50ccフルノーマルでMJ#60・SJ#35が基準です。ASはD型ドライバーが必要（全ネジ大MJ・APE用PJ使用／純正ニードルは3段調整）。"
+        "note": "エイプ50(AC16)純正キャブ。50ccフルノーマルでMJ#62・SJ#35前後、80ccボアアップ+パワフィル等で#78〜82前後が目安。ASはD型ドライバーが必要（純正ニードルは3段調整）。"
     },
     "KEIHIN 純正 PB16 / PC18": {
         "maker": "ケイヒン",
-        "base_mj": 75.0,
-        "base_sj": 35.0,
-        "mj_step": 3.0,
+        "base_mj": 85.0,
+        "base_sj": 38.0,
+        "mj_step": 5.0,
         "sj_step": 3.0,
         "base_screw": 1.5,
         "screw_type": "PS",
-        "note": "ノーマル〜ライトボアアップ向け。エンジン側下のD型スクリュー（PS）は緩めると濃くなります。"
+        "note": "エイプ80〜88ccボアアップ＋パワフィル等でMJ#85前後が目安（50ccノーマルは#65前後）。下側のD型スクリュー（PS）は緩めると濃くなります。"
     },
     "KEIHIN PC20": {
         "maker": "ケイヒン",
