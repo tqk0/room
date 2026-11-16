@@ -1,23 +1,22 @@
 import streamlit as st
+from datetime import datetime
+import csv
+import io
 
-st.set_page_config(page_title="キャブセッティング診断", page_icon="🏍️", layout="centered")
+st.set_page_config(page_title="4mini キャブセッティング診断", page_icon="🏍️", layout="centered")
 
 # ==========================================
-# 【Part 1】マスタデータ定義（ここをコピペして増やせます！）
+# 【Part 1】マスタデータ定義（4mini & 250単気筒特化）
 # ==========================================
 
 # default_cc_index の対応番号:
 #   0: 50cc (ノーマル)
-#   1: 60〜88cc (原付ボアアップ)
-#   2: 100〜110cc (4miniミドル)
-#   3: 115〜125cc (4miniハイチューン)
-#   4: 200〜250cc (単気筒)
-#   5: 250cc マルチ (2気筒等)
-#   6: 400cc マルチ (4気筒等)
-#   7: 750〜1000cc+ マルチ
+#   1: 75〜88cc (定番ボアアップ)
+#   2: 100〜110cc (ミドルチューン)
+#   3: 115〜125cc (ハイチューン/中華125等)
+#   4: 200〜250cc (単気筒・FTR/ボルティー等)
 
 BIKE_DATA = {
-    # --- 4mini (4st) ---
     "モンキー / ゴリラ (Z50J/AB27)": {
         "engine_type": "4st横型",
         "default_cc_index": 1,
@@ -68,93 +67,18 @@ BIKE_DATA = {
         "default_cc_index": 0,
         "note": "高回転型の縦型エンジン（ドリーム50はDOHC）。薄め焼き付きに注意し、高回転のMJを丁寧に合わせます。"
     },
-
-    # --- 2スト (2st) ---
-    "NS-1 (AC12) [2st]": {
-        "engine_type": "2st水冷単気筒",
-        "default_cc_index": 0,
-        "is_2st": True,
-        "note": "純正キャブはMJ#95(前期)/#100(後期)・SJ#40。PE20〜PE24やPWK28化が定番ですが、パワフィルより直キャブ/BOX加工の方がセッティングが出やすい傾向です。"
-    },
-    "ペリカンジョグ / JOG (27V) [2st]": {
-        "engine_type": "2st空冷スクーター",
-        "default_cc_index": 0,
-        "is_2st": True,
-        "note": "初期縦型ジョグ（純正MJ#84付近・TK丸大）。スクーターはキャブだけでなくプーリー/WR等駆動系の変速回転数も吹け上がりに影響します。"
-    },
-    "ライブDio ZX (AF34/AF35) [2st]": {
-        "engine_type": "2st空冷スクーター",
-        "default_cc_index": 0,
-        "is_2st": True,
-        "note": "前期・後期でキャブが異なり純正MJ#78〜#82・SJ#38〜#40付近。社外PE20/24化時は分離給油オイルポンプやオートチョーク処理に注意。"
-    },
-    "TZR50R (4EU) [2st]": {
-        "engine_type": "2st水冷単気筒",
-        "default_cc_index": 0,
-        "is_2st": True,
-        "note": "前期(4EU1〜3)は純正VM16(MJ#80付近)、95年〜(4EU4)はVM18(MJ#100付近・TZM同系)と年式で純正キャブが異なります。社外PE/VM20化時は濃いめから試してください。"
-    },
-    "アドレスV100 (CE11A/CE13A) [2st]": {
-        "engine_type": "2st空冷スクーター(99cc)",
-        "default_cc_index": 2,
-        "is_2st": True,
-        "note": "純正キャブはMJ#62.5・PJ#22.5付近と小さめ（CE11A前期はミクニ丸特大、CE11A後期/CE13Aは丸小とMJ形状が異なります）。PE20/24等へ交換時は#100〜120前後が目安。駆動系(WR)の影響も大きいです。"
-    },
-
-    # --- 250cc 単気筒 (4st) ---
-    "ボルティー250 (NJ47A)": {
-        "engine_type": "250cc単気筒",
-        "default_cc_index": 4,
-        "note": "スズキの空冷250cc単気筒（グラストラッカー/ST250系）。社外キャブ化ではスロットルワイヤー変更やパワフィル化・2次エアキャンセルの確認が定番。"
-    },
     "FTR223 (MC34)": {
         "engine_type": "223cc単気筒",
         "default_cc_index": 4,
         "note": "ホンダ空冷単気筒（純正VEキャブはMJ#118・SJ#35〜38付近）。社外パワフィル＋マフラー仕様ではMJ#130〜135前後やPWK28/34・FCR化も人気です。"
     },
-
-    # --- マルチ・2気筒/4気筒（※情報不足のため目安程度） ---
-    "VT250FE (MC08) [マルチ/2気筒]": {
-        "engine_type": "250cc水冷V型2気筒",
-        "default_cc_index": 5,
-        "is_multi": True,
-        "note": "【目安程度】純正キャブは前後バンクで番手が異なる設計(例:フロント#92/リア#90, SJ#38)。マルチ車は情報が不足しているため基準値は参考程度とし、同調もご確認ください。"
-    },
-    "GSX-R400 (GK71B/73A/76A) [マルチ/4気筒]": {
-        "engine_type": "400cc水冷直列4気筒",
-        "default_cc_index": 6,
-        "is_multi": True,
-        "note": "【目安程度】年式・型式によりミクニ/ケイヒン/アイサン製など純正キャブが大きく異なります。マルチ車は情報不足のため数値はあくまで目安程度です。"
-    },
-    "TRX850 (4NX) [マルチ/2気筒]": {
-        "engine_type": "850cc水冷並列2気筒",
-        "default_cc_index": 7,
-        "is_multi": True,
-        "note": "【目安程度】純正はミクニBDST(ダウンドラフト)、社外はFCR39/41等が定番。マルチ車は情報不足のため数値はあくまで目安程度です。"
-    },
-    "CB1000SF (SC30) [マルチ/4気筒]": {
-        "engine_type": "1000cc水冷直列4気筒",
-        "default_cc_index": 7,
-        "is_multi": True,
-        "note": "【目安程度】純正CVキャブはMJ#105・SJ#38付近、社外FCR39ではMJ#145〜160前後が多め。マルチ車は情報不足のため数値はあくまで目安程度です。"
-    },
-    "イナズマ400 (GK7BA) [マルチ/4気筒]": {
-        "engine_type": "400cc油冷直列4気筒",
-        "default_cc_index": 6,
-        "is_multi": True,
-        "note": "【目安程度】純正はケイヒンCVK/CVR系(例:前期純正MJ 1・4番#92 / 2・3番#95、SJ#35)。マルチ車は情報不足のため数値はあくまで目安程度です。"
-    },
-    "GSX400インパルス (GK7CA) [マルチ/4気筒]": {
-        "engine_type": "400cc水冷直列4気筒",
-        "default_cc_index": 6,
-        "is_multi": True,
-        "note": "【目安程度】純正はミクニ系CVキャブ(参考:1・4番と2・3番でMJ番手が異なる場合あり、PS約1-3/4戻し)。マルチ車は情報不足のため数値はあくまで目安程度です。"
+    "ボルティー250 (NJ47A)": {
+        "engine_type": "250cc単気筒",
+        "default_cc_index": 4,
+        "note": "スズキ空冷250cc単気筒。社外キャブ化ではスロットルワイヤー変更やパワフィル化・2次エアキャンセルの確認が定番です。"
     },
 }
 
-# screw_type:
-#   "AS" = エアスクリュー（空気調整：締める＝濃く、緩める＝薄く）
-#   "PS" = パイロットスクリュー（混合気調整：緩める＝濃く、締める＝薄く）
 CARB_DATA = {
     "KEIHIN 純正 PB14 (エイプ50等)": {
         "maker": "ケイヒン",
@@ -194,7 +118,7 @@ CARB_DATA = {
         "sj_step": 2.0,
         "base_screw": 1.5,
         "screw_type": "AS",
-        "note": "2st原付(NS-1/ジョグ/ディオ)や4mini定番の強制開閉キャブ。ケイヒン丸大MJ使用。※デイトナ製タイプ1/2のエアブリード付SJの場合は#55〜65付近と番手が大きく異なります。"
+        "note": "4mini定番の強制開閉キャブ。ケイヒン丸大MJ使用。※デイトナ製タイプ1/2のエアブリード付SJの場合は#55〜65付近と番手が大きく異なります。"
     },
     "KEIHIN PE21 (汎用/社外等)": {
         "maker": "ケイヒン/社外",
@@ -204,7 +128,7 @@ CARB_DATA = {
         "sj_step": 2.0,
         "base_screw": 1.5,
         "screw_type": "AS",
-        "note": "2stボアアップ車(TZR50R/JOG/NS-1等)や4miniで使われる21φクラスPE系キャブ。本体仕様(エアブリード有無)によりSJの基準が変わるため現車の番手も要確認。"
+        "note": "21φクラスPE系キャブ。本体仕様（エアブリード有無）によりSJの基準が変わるため現車の番手も要確認。"
     },
     "KEIHIN PD22": {
         "maker": "ケイヒン",
@@ -219,12 +143,12 @@ CARB_DATA = {
     "KEIHIN PE24": {
         "maker": "ケイヒン",
         "base_mj": 105.0,
-        "base_sj": 40.0,
+        "base_sj": 38.0,
         "mj_step": 5.0,
         "sj_step": 2.0,
         "base_screw": 1.5,
         "screw_type": "AS",
-        "note": "4miniボアアップや2st(NS-1/スクーターチューン)の超定番。ケイヒン丸大MJを使用。2stに使う場合は焼き付き防止のため濃いめから試してください。"
+        "note": "ボアアップ車の超定番。ケイヒン丸大MJを使用。セッティングが出しやすく扱いやすいキャブです。"
     },
     "KEIHIN PE28": {
         "maker": "ケイヒン",
@@ -234,7 +158,7 @@ CARB_DATA = {
         "sj_step": 2.0,
         "base_screw": 1.5,
         "screw_type": "AS",
-        "note": "100cc超のハイチューンや2stビッグボア向け大口径丸型バルブ。中速のツキと高回転の伸びのバランスが良いです。"
+        "note": "100cc超のハイチューン〜250単気筒向け大口径丸型バルブ。中速のツキと高回転の伸びのバランスが良いです。"
     },
     "KEIHIN PWK28": {
         "maker": "ケイヒン",
@@ -254,7 +178,7 @@ CARB_DATA = {
         "sj_step": 2.0,
         "base_screw": 1.5,
         "screw_type": "AS",
-        "carb_scale": "250_single",
+        "base_for_250": True,
         "note": "250cc単気筒等に人気のφ34ビッグキャブ（ケイヒン用MJ/SJ互換）。実走ではMJ#110〜115付近で合う例が多いです。パワージェット付きは高回転が濃くなりやすいため注意。"
     },
     "KEIHIN CR-mini22": {
@@ -276,17 +200,6 @@ CARB_DATA = {
         "base_screw": 1.5,
         "screw_type": "PS",
         "note": "4mini〜250単気筒にも人気のレーシングキャブ（加速ポンプ付）。基本は下側のPS（緩めると濃く）でアイドリング〜極低開度を合わせます。"
-    },
-    "KEIHIN FCR39 (ラージボディ)": {
-        "maker": "ケイヒン",
-        "base_mj": 150.0,
-        "base_sj": 48.0,
-        "mj_step": 5.0,
-        "sj_step": 2.0,
-        "base_screw": 1.5,
-        "screw_type": "PS",
-        "carb_scale": "big_multi",
-        "note": "大型マルチ(CB1000SF/TRX850等)やビッグシングル向けFCRラージボディ。PS（下側・緩めると濃く）とAS（エアクリ側・緩めると薄く）の両方を持ちます。"
     },
     "MIKUNI VM22 (汎用/中華キット等)": {
         "maker": "ミクニ",
@@ -352,13 +265,10 @@ CARB_DATA = {
 
 CC_LIST = [
     "50cc (ノーマル)",
-    "60〜88cc (原付ボアアップ)",
-    "100〜110cc (4mini/アドレスV100等)",
-    "115〜125cc (4miniハイチューン)",
-    "200〜250cc (単気筒・ボルティー/FTR等)",
-    "250cc マルチ (VT250FE等)",
-    "400cc マルチ (GSX-R400等)",
-    "750〜1000cc+ マルチ (CB1000SF/TRX850等)"
+    "75〜88cc (定番ボアアップ)",
+    "100〜110cc (ミドルチューン)",
+    "115〜125cc (ハイチューン/中華125等)",
+    "200〜250cc (単気筒・FTR/ボルティー等)"
 ]
 
 def fmt(val):
@@ -369,17 +279,15 @@ def fmt(val):
 # 【Part 2】推論ロジック（ベース算出 & 症状診断）
 # ==========================================
 
-def calc_base_setting(carb_name, cc_class, head_spec, air_filter, exhaust, season, is_2st=False):
+def calc_base_setting(carb_name, cc_class, head_spec, air_filter, exhaust, season):
     carb = CARB_DATA[carb_name]
     mj = carb["base_mj"]
     sj = carb["base_sj"]
     clip = 3
     screw_turn = carb["base_screw"]
-    scale = carb.get("carb_scale", "mini")
+    is_250_carb = carb.get("base_for_250", False)
 
-    # 1. キャブの想定クラスごとの排気量補正
-    if scale == "250_single":
-        # PWK34（250cc単気筒基準）
+    if is_250_carb:
         if cc_class == CC_LIST[0]:
             mj -= carb["mj_step"] * 4
             sj -= carb["sj_step"] * 2
@@ -393,77 +301,30 @@ def calc_base_setting(carb_name, cc_class, head_spec, air_filter, exhaust, seaso
             mj -= carb["mj_step"]
         elif cc_class == CC_LIST[4]:
             pass
-        elif cc_class == CC_LIST[5]:
-            mj -= carb["mj_step"]
-        elif cc_class == CC_LIST[6]:
-            mj += carb["mj_step"]
-        elif cc_class == CC_LIST[7]:
-            mj += carb["mj_step"] * 3
-            sj += carb["sj_step"] * 2
-
-    elif scale == "big_multi":
-        # FCR39（大型マルチ基準：150 / 48）
-        if cc_class in [CC_LIST[0], CC_LIST[1], CC_LIST[2], CC_LIST[3]]:
-            mj -= carb["mj_step"] * 8
-            sj -= carb["sj_step"] * 4
-        elif cc_class == CC_LIST[4]:
+    else:
+        if cc_class == CC_LIST[0]:
             mj -= carb["mj_step"] * 2
             sj -= carb["sj_step"]
-        elif cc_class == CC_LIST[5]:
-            mj -= carb["mj_step"] * 6
-            sj -= carb["sj_step"] * 4
-        elif cc_class == CC_LIST[6]:
-            mj -= carb["mj_step"] * 4
-            sj -= carb["sj_step"] * 2
-        elif cc_class == CC_LIST[7]:
+        elif cc_class == CC_LIST[1]:
             pass
+        elif cc_class == CC_LIST[2]:
+            mj += carb["mj_step"]
+            sj += carb["sj_step"] * 0.5
+        elif cc_class == CC_LIST[3]:
+            mj += carb["mj_step"] * 2
+            sj += carb["sj_step"]
+        elif cc_class == CC_LIST[4]:
+            mj += carb["mj_step"] * 3
+            sj += carb["sj_step"] * 1.5
 
-    else:
-        # 4mini基準のキャブ（PE20/21/24, PC20, PWK28等）
-        if is_2st:
-            # 2ストは同排気量でも4ストより濃め（+1〜2ランク）が必要
-            if cc_class == CC_LIST[0]:
-                mj += carb["mj_step"]
-                sj += carb["sj_step"]
-            elif cc_class == CC_LIST[1]:
-                mj += carb["mj_step"] * 2.5
-                sj += carb["sj_step"] * 2
-            else:
-                mj += carb["mj_step"] * 3
-                sj += carb["sj_step"] * 2
-        else:
-            if cc_class == CC_LIST[0]:
-                mj -= carb["mj_step"] * 2
-                sj -= carb["sj_step"]
-            elif cc_class == CC_LIST[1]:
-                pass
-            elif cc_class == CC_LIST[2]:
-                mj += carb["mj_step"]
-                sj += carb["sj_step"] * 0.5
-            elif cc_class == CC_LIST[3]:
-                mj += carb["mj_step"] * 2
-                sj += carb["sj_step"]
-            elif cc_class == CC_LIST[4]:
-                mj += carb["mj_step"] * 3
-                sj += carb["sj_step"] * 1.5
-            elif cc_class == CC_LIST[5]:
-                mj += carb["mj_step"]
-                sj += carb["sj_step"] * 0.5
-            elif cc_class == CC_LIST[6]:
-                mj += carb["mj_step"] * 2
-                sj += carb["sj_step"]
-            elif cc_class == CC_LIST[7]:
-                mj += carb["mj_step"] * 5
-                sj += carb["sj_step"] * 2
-
-    # 2. ヘッド・カム / 2stポート補正
-    if "スポーツカム" in head_spec:
+    # ヘッド・カム補正
+    if head_spec == "社外スポーツカムのみ":
         mj += carb["mj_step"] * 0.5
-    elif "ビッグバルブ" in head_spec:
+    elif head_spec == "社外ビッグバルブヘッド + ハイカム":
         mj += carb["mj_step"]
         sj += carb["sj_step"] * 0.5
 
-    # 3. エアクリーナー補正
+    # エアクリーナー補正
     if air_filter == "純正エアクリーナーBOX":
         mj -= carb["mj_step"]
     elif air_filter == "パワーフィルター":
@@ -471,29 +332,28 @@ def calc_base_setting(carb_name, cc_class, head_spec, air_filter, exhaust, seaso
     elif air_filter == "ファンネル / 直キャブ":
         mj += carb["mj_step"]
 
-    # 4. マフラー / チャンバー補正
+    # マフラー補正
     if exhaust == "純正マフラー":
         mj -= carb["mj_step"]
-    elif "ストリート" in exhaust:
+    elif exhaust == "社外マフラー（ストリート/静かめ）":
         pass
-    elif "レーシング" in exhaust:
+    elif exhaust == "社外レーシング / 抜け重視・直管系":
         mj += carb["mj_step"]
 
-    # 5. 季節補正
+    # 季節補正
     if season == "夏（暑い・25℃以上）":
         mj -= carb["mj_step"]
     elif season == "冬（寒い・10℃以下）":
         mj += carb["mj_step"]
 
-    # 入力欄の最小・最大範囲に安全に丸める
     mj = min(300.0, max(50.0, round(mj * 2) / 2))
     sj = min(80.0, max(10.0, round(sj * 2) / 2))
     return mj, sj, clip, screw_turn
 
 
-def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, sym_mid, sym_high, sym_other, plug_color, is_2st=False):
+def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, sym_mid, sym_high, sym_other, plug_color):
     carb = CARB_DATA[carb_name]
-    s_type = carb["screw_type"]  # "AS" or "PS"
+    s_type = carb["screw_type"]
     new_mj = cur_mj
     new_sj = cur_sj
     new_clip = cur_clip
@@ -501,7 +361,6 @@ def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, s
     advices = []
     warnings = []
 
-    # 1. 全開域（3/4〜全開）→ MJ
     if sym_high == "濃い（ボコつく・重い・黒煙・頭打ち）":
         new_mj -= carb["mj_step"]
         advices.append(f"🔺 **全開域が濃い症状**：MJを1ランク下げます（`#{fmt(cur_mj)}` → `#{fmt(new_mj)}`）。")
@@ -509,7 +368,6 @@ def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, s
         new_mj += carb["mj_step"]
         advices.append(f"🔻 **全開域が薄い症状**：焼き付き防止のためMJを上げます（`#{fmt(cur_mj)}` → `#{fmt(new_mj)}`）。")
 
-    # 2. 中間域（1/4〜3/4）→ クリップ位置
     if sym_mid == "濃い（ボコつく・吹け上がりが重い）":
         if cur_clip > 1:
             new_clip -= 1
@@ -523,7 +381,6 @@ def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, s
         else:
             advices.append("⚠️ **中間域が薄い**ですが、クリップが既に最下段（5段目）です。MJを上げるか、より細いニードルを検討してください。")
 
-    # 3. 低開度・アイドリング（0〜1/4）→ SJ & AS/PS自動分岐
     if s_type == "AS":
         if sym_low == "濃い（アイドリング不安定・生ガス臭い・カブる）":
             new_screw += 0.5
@@ -555,7 +412,6 @@ def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, s
                 new_screw = carb["base_screw"]
                 advices.append(f"💡 PSが2.5回転以上開くため、**SJを1ランク上げて**PSを基準(`{new_screw}回転`)に戻すのがベストです（SJ `#{fmt(cur_sj)}` → `#{fmt(new_sj)}`）。")
 
-    # 4. その他症状
     if "アクセルオフでアフターファイア（パンパン鳴る）" in sym_other:
         if sym_low == "特になし（良好）":
             new_sj += carb["sj_step"]
@@ -570,12 +426,8 @@ def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, s
             advices.append("⚡ **急開時の息継ぎ**：大口径キャブは急開すると流速が落ちて薄くなりがちです。少しクリップを下げるか、スロー系を濃くすると改善します。")
 
     if "エンジンが温まると調子が悪くなる" in sym_other:
-        if is_2st:
-            warnings.append("2stで温間時のみ不調・力がない場合、抱きつき前兆やオイル不足・熱ダレ、または濃すぎ（カブり）の可能性があります。")
-        else:
-            warnings.append("温間時のみの不調は、濃すぎ（カブり）か、「タペットクリアランス不良」「イグニッションコイル熱ダレ」の可能性もあります。")
+        warnings.append("温間時のみの不調は、濃すぎ（カブり）か、「タペットクリアランス不良」「イグニッションコイル熱ダレ」の可能性もあります。")
 
-    # 5. プラグの焼け色チェック
     if plug_color == "真っ白・電極が溶け気味（かなり薄い）":
         if sym_high == "特になし（良好）":
             new_mj += carb["mj_step"]
@@ -593,11 +445,16 @@ def diagnose_symptoms(carb_name, cur_mj, cur_sj, cur_clip, cur_screw, sym_low, s
 
 
 # ==========================================
-# 【Part 3】画面UI
+# 【Part 3】画面UI & 履歴管理
 # ==========================================
 
-st.title("🏍️ キャブセッティング診断(α版)")
-st.caption("個人制作の非公式ツール｜4mini・2st・250単気筒・マルチ対応（全23車種 × 人気19キャブ）")
+if "history" not in st.session_state:
+    st.session_state["history"] = []
+if "last_result" not in st.session_state:
+    st.session_state["last_result"] = None
+
+st.title("🏍️ 4mini キャブセッティング診断")
+st.caption("個人制作の非公式ツール｜4mini（10車種）＋ FTR223 / ボルティー250 × 人気18キャブ対応")
 
 # --- 1. マシン仕様入力 ---
 st.header("1. 車体・エンジン・吸排気の仕様")
@@ -605,40 +462,29 @@ col1, col2 = st.columns(2)
 with col1:
     bike_model = st.selectbox("車種", list(BIKE_DATA.keys()))
     bike_info = BIKE_DATA[bike_model]
-    is_2st = bike_info.get("is_2st", False)
-    is_multi = bike_info.get("is_multi", False)
-
     cc_class = st.selectbox(
         "排気量",
         CC_LIST,
         index=bike_info["default_cc_index"],
         key=f"cc_{bike_model}"
     )
-    head_spec = st.selectbox("エンジン詳細", [
-        "純正仕様（ノーマル/ライトボア）",
-        "社外スポーツカム / 2stライトチューン",
-        "ビッグバルブ+ハイカム / 2stポート加工"
+    head_spec = st.selectbox("ヘッド・カム詳細", [
+        "純正ヘッド・純正カム",
+        "社外スポーツカムのみ",
+        "社外ビッグバルブヘッド + ハイカム"
     ])
 
 with col2:
     carb_name = st.selectbox("キャブレター", list(CARB_DATA.keys()))
     air_filter = st.selectbox("エアクリーナー", ["純正エアクリーナーBOX", "パワーフィルター", "ファンネル / 直キャブ"], index=1)
-    exhaust = st.selectbox("エキパイ・サイレンサー", ["純正マフラー", "社外マフラー/チャンバー（ストリート）", "社外レーシング / 抜け重視・直管系"], index=1)
+    exhaust = st.selectbox("エキパイ・サイレンサー", ["純正マフラー", "社外マフラー（ストリート/静かめ）", "社外レーシング / 抜け重視・直管系"], index=1)
 
 season = st.radio("現在の気温環境", ["夏（暑い・25℃以上）", "春・秋（標準・10〜25℃）", "冬（寒い・10℃以下）"], index=1, horizontal=True)
 
 screw_label = CARB_DATA[carb_name]["screw_type"]
 st.info(f"🏍️ **{bike_info['engine_type']}**：{bike_info['note']}\n\n🔧 **{carb_name}**：{CARB_DATA[carb_name]['note']}")
 
-# 2st・マルチ専用バナー
-if is_multi:
-    st.warning("⚠️ **マルチ（多気筒）車について**：マルチ車は年式・純正キャブ種別・社外キャブの情報がまだ不足しているため、以下の基準値は**あくまで目安程度**にご参考ください。現車に現在付いている番手をもとに下の「症状診断」を使うのがおすすめです。")
-
-if is_2st:
-    st.warning("💨 **2ストローク車の注意**：2stは燃料が薄いと即焼き付き・抱きつきを起こします！特にパワーフィルターは流速が乱れてセッティングが出にくい車種（NS-1等）があるためご注意ください。")
-
-# ベースセッティング計算
-base_mj, base_sj, base_clip, base_screw = calc_base_setting(carb_name, cc_class, head_spec, air_filter, exhaust, season, is_2st=is_2st)
+base_mj, base_sj, base_clip, base_screw = calc_base_setting(carb_name, cc_class, head_spec, air_filter, exhaust, season)
 
 with st.expander("📊 この仕様の「基準（初期）セッティング」目安を見る", expanded=True):
     b1, b2, b3, b4 = st.columns(4)
@@ -693,37 +539,93 @@ plug_color = st.selectbox("プラグの焼け色（確認できた場合）", [
     "真っ黒で湿っている（かなり濃い）"
 ])
 
-# --- 3. 診断結果 ---
+# --- 3. 診断実行 ---
 if st.button("🔍 次の推奨セッティングを診断する", type="primary", use_container_width=True):
     new_mj, new_sj, new_clip, new_screw, advices, warnings = diagnose_symptoms(
         carb_name, cur_mj, cur_sj, cur_clip, cur_screw,
-        sym_low, sym_mid, sym_high, sym_other, plug_color, is_2st=is_2st
+        sym_low, sym_mid, sym_high, sym_other, plug_color
     )
+    st.session_state["last_result"] = {
+        "bike": bike_model,
+        "cc": cc_class,
+        "carb": carb_name,
+        "air": air_filter,
+        "exhaust": exhaust,
+        "season": season,
+        "cur_mj": cur_mj,
+        "cur_sj": cur_sj,
+        "cur_clip": cur_clip,
+        "cur_screw": cur_screw,
+        "new_mj": new_mj,
+        "new_sj": new_sj,
+        "new_clip": new_clip,
+        "new_screw": new_screw,
+        "screw_label": screw_label,
+        "plug": plug_color,
+        "advices": advices,
+        "warnings": warnings,
+    }
 
+# --- 診断結果表示 & 履歴保存 ---
+if st.session_state["last_result"]:
+    res = st.session_state["last_result"]
     st.divider()
     st.header("🎯 次の推奨セッティング案")
 
     r1, r2, r3, r4 = st.columns(4)
-    r1.metric("推奨 MJ", f"#{fmt(new_mj)}", delta=fmt(new_mj - cur_mj) if new_mj != cur_mj else None)
-    r2.metric("推奨 SJ", f"#{fmt(new_sj)}", delta=fmt(new_sj - cur_sj) if new_sj != cur_sj else None)
-    r3.metric("クリップ(上から)", f"{new_clip}段目", delta=f"{new_clip - cur_clip}段" if new_clip != cur_clip else None)
-    r4.metric(f"{screw_label} 戻し", f"{new_screw} 回転", delta=f"{round(new_screw - cur_screw, 2)}" if new_screw != cur_screw else None)
+    r1.metric("推奨 MJ", f"#{fmt(res['new_mj'])}", delta=fmt(res['new_mj'] - res['cur_mj']) if res['new_mj'] != res['cur_mj'] else None)
+    r2.metric("推奨 SJ", f"#{fmt(res['new_sj'])}", delta=fmt(res['new_sj'] - res['cur_sj']) if res['new_sj'] != res['cur_sj'] else None)
+    r3.metric("クリップ(上から)", f"{res['new_clip']}段目", delta=f"{res['new_clip'] - res['cur_clip']}段" if res['new_clip'] != res['cur_clip'] else None)
+    r4.metric(f"{res['screw_label']} 戻し", f"{res['new_screw']} 回転", delta=f"{round(res['new_screw'] - res['cur_screw'], 2)}" if res['new_screw'] != res['cur_screw'] else None)
 
     st.subheader("📝 調整のポイント")
-    for adv in advices:
+    for adv in res["advices"]:
         st.markdown(f"- {adv}")
 
-    if warnings:
-        for warn in warnings:
+    if res["warnings"]:
+        for warn in res["warnings"]:
             st.error(warn)
 
-    st.warning("⚠️ **セッティングの鉄則**：ジェット類は「1箇所ずつ」変更して試走すると原因が迷子になりにくいです。2次エア吸いやフロート油面の狂い、リードバルブ/タペット状態にもご注意ください。")
+    st.warning("⚠️ **セッティングの鉄則**：ジェット類は「1箇所ずつ」変更して試走すると原因が迷子になりにくいです。2次エア吸いやフロート油面の狂い、タペット調整不良にもご注意ください。")
+
+    # 履歴へのメモ追加フォーム
+    with st.form("save_history_form"):
+        memo = st.text_input("試走メモ（任意）", placeholder="例：MJ110に変えたら谷が消えてきつね色になった！")
+        if st.form_submit_button("📒 このセッティングを履歴メモに記録する"):
+            st.session_state["history"].append({
+                "日時": datetime.now().strftime("%Y/%m/%d %H:%M"),
+                "車種": res["bike"],
+                "キャブ": res["carb"],
+                "現状": f"MJ#{fmt(res['cur_mj'])} / SJ#{fmt(res['cur_sj'])} / {res['cur_clip']}段 / {res['screw_label']}{res['cur_screw']}",
+                "推奨": f"MJ#{fmt(res['new_mj'])} / SJ#{fmt(res['new_sj'])} / {res['new_clip']}段 / {res['screw_label']}{res['new_screw']}",
+                "プラグ": res["plug"],
+                "メモ": memo,
+            })
+            st.success("履歴に記録しました！（下のセッティング履歴から確認・CSV保存できます）")
+
+# --- 4. セッティング履歴表示（Web版簡易版） ---
+if st.session_state["history"]:
+    st.divider()
+    st.header("📒 今回のセッティング履歴メモ")
+    st.caption("※現在のWeb版ではページを閉じるとリセットされます。残したい場合は下のCSVボタンで保存してください。")
+    st.dataframe(st.session_state["history"], use_container_width=True)
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=st.session_state["history"][0].keys())
+    writer.writeheader()
+    writer.writerows(st.session_state["history"])
+    st.download_button(
+        label="📥 履歴をCSVファイルで保存する",
+        data=output.getvalue().encode("utf-8-sig"),
+        file_name=f"carb_setting_log_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
 
 # --- フッター（免責事項） ---
 st.divider()
 st.caption("""
 **【免責事項・ご利用にあたって】**
 - 本アプリはバイク好きの個人が制作した非公式の参考ツールです。各メーカー様とは一切関係ありません。
-- 提示される番手や調整値は一般的な目安です。特にマルチ車や2st車は車両の個体差、気候、経年劣化等により最適値が大きく異なります。
+- 提示される番手や調整値は一般的な目安です。車両の個体差、気候、経年劣化等により最適値は異なります。
 - 本アプリを参考にした作業・走行によるエンジンの焼き付きや故障等のトラブルについて、制作者は一切の責任を負いかねます。必ず自己責任のもと、安全に配慮してセッティングを行ってください。
 """)
