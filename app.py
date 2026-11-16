@@ -193,11 +193,11 @@ CARB_DATA = {
     },
     "KEIHIN FCR28": {
         "maker": "ケイヒン",
-        "base_mj": 110.0,
-        "base_sj": 45.0,
-        "mj_step": 5.0,
-        "sj_step": 3.0,
-        "base_screw": 1.5,
+        "base_mj": 108.0,
+        "base_sj": 42.0,
+        "mj_step": 4.0,
+        "sj_step": 2.0,
+        "base_screw": 1.25,
         "screw_type": "PS",
         "note": "4mini〜250単気筒にも人気のレーシングキャブ（加速ポンプ付）。基本は下側のPS（緩めると濃く）でアイドリング〜極低開度を合わせます。"
     },
@@ -347,7 +347,8 @@ def calc_base_setting(carb_name, cc_class, head_spec, air_filter, exhaust, seaso
         mj += carb["mj_step"]
 
     mj = min(300.0, max(50.0, round(mj * 2) / 2))
-    sj = min(80.0, max(10.0, round(sj * 2) / 2))
+    sj = round(sj * 2) / 2 if carb["sj_step"] == 2.5 else float(round(sj))
+    sj = min(80.0, max(10.0, sj))
     return mj, sj, clip, screw_turn
 
 
